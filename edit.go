@@ -63,12 +63,28 @@ func edit(prRemoteName string, prNumber int) int {
 	fetchRefSpec := gitc.RefSpec(fmt.Sprintf("+%s:%s", remoteHeadName, remoteRefName))
 
 	// Add remote.
-	_, err = repo.CreateRemote(&gitc.RemoteConfig{
+	config := &gitc.RemoteConfig{
 		Name:  remoteName,
 		URLs:  []string{headRepo},
 		Fetch: []gitc.RefSpec{fetchRefSpec},
-	})
-	if err != git.ErrRemoteExists {
+	}
+	remote, err := repo.Remote(remoteName)
+	if err == nil {
+		config = remote.Config()
+		for _, refspec := range config.Fetch {
+			if refspec == fetchRefSpec {
+				config = nil
+				break
+			}
+		}
+		if config != nil {
+			config.Fetch = append(config.Fetch, fetchRefSpec)
+			err = repo.DeleteRemote(remoteName)
+			e.Exit(err)
+		}
+	}
+	if config != nil {
+		_, err = repo.CreateRemote(config)
 		e.Exit(err)
 	}
 
