@@ -45,6 +45,9 @@ func edit(prRemoteName string, prNumber int) int {
 	prRemote, err := repo.Remote(prRemoteName)
 	e.Exit(err)
 	url := prRemote.Config().URLs[0]
+	replacer, err := NewGitURLReplacer()
+	e.Exit(err)
+	url, unreplace := replacer.Replace(url)
 	parts := rxGitHubURL.FindStringSubmatch(url)
 	if len(parts) != 3 {
 		log.Printf("error: remote %q is not at GitHub: %s", prRemoteName, url)
@@ -81,7 +84,7 @@ func edit(prRemoteName string, prNumber int) int {
 	// Add remote.
 	config := &gitc.RemoteConfig{
 		Name:  remoteName,
-		URLs:  []string{headRepo},
+		URLs:  []string{unreplace(headRepo)},
 		Fetch: []gitc.RefSpec{fetchRefSpec},
 	}
 	remote, err := repo.Remote(remoteName)
