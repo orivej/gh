@@ -35,6 +35,10 @@ func edit(prRemoteName string, prNumber int) int {
 	cwd, err := os.Getwd()
 	e.Exit(err)
 	repo, err := git.PlainOpen(cwd)
+	if err == git.ErrRepositoryNotExists {
+		log.Println("error: this is not the root of a git repository:", cwd)
+		return 1
+	}
 	e.Exit(err)
 
 	// Resolve PR repo.
@@ -42,6 +46,10 @@ func edit(prRemoteName string, prNumber int) int {
 	e.Exit(err)
 	url := prRemote.Config().URLs[0]
 	parts := rxGitHubURL.FindStringSubmatch(url)
+	if len(parts) != 3 {
+		log.Printf("error: remote %q is not at GitHub: %s", prRemoteName, url)
+		return 1
+	}
 	prOwner, prRepo := parts[1], parts[2]
 
 	// Fetch PR.
@@ -53,14 +61,22 @@ func edit(prRemoteName string, prNumber int) int {
 	pr, _, err := gh.PullRequests.Get(ctx, prOwner, prRepo, prNumber)
 	e.Exit(err)
 
-	remoteName := *pr.Head.Repo.Owner.Login
 	headRepo := *pr.Head.Repo.GitURL
-	headBranch := *pr.Head.Ref
-	localBranch := remoteName + "/" + headBranch
+	remoteName := *pr.Head.Repo.Owner.Login
+	remoteBranch := *pr.Head.Ref
+	// localBranch (in refs/heads/) and shadowBranch (in refs/remotes/) are
+	// configurable, everything else is determined.  For convenience of git
+	// operations they should be different.  For pushRemote to work, the
+	// localBranch must equal remoteBranch.
+	shadowBranch := remoteName + "/" + remoteBranch
+	localBranch := remoteBranch
+	if localBranch == *pr.Base.Ref || localBranch == *pr.Base.Repo.DefaultBranch {
+		localBranch = fmt.Sprintf("pr-%d", prNumber)
+	}
+	remoteRefName := gitp.ReferenceName("refs/heads/" + remoteBranch)
+	shadowRefName := gitp.ReferenceName("refs/remotes/" + shadowBranch)
 	localRefName := gitp.ReferenceName("refs/heads/" + localBranch)
-	remoteHeadName := gitp.ReferenceName("refs/heads/" + headBranch)
-	remoteRefName := gitp.ReferenceName("refs/remotes/" + localBranch)
-	fetchRefSpec := gitc.RefSpec(fmt.Sprintf("+%s:%s", remoteHeadName, remoteRefName))
+	fetchRefSpec := gitc.RefSpec(fmt.Sprintf("+%s:%s", remoteRefName, shadowRefName))
 
 	// Add remote.
 	config := &gitc.RemoteConfig{
@@ -105,7 +121,7 @@ func edit(prRemoteName string, prNumber int) int {
 	log.Printf("* git: checkout %s", localBranch)
 
 	// Configure branch.
-	runGit("branch", "-f", localBranch, string(remoteRefName))
+	runGit("branch", "-f", localBranch, string(shadowRefName))
 
 	// Check it out.
 	if pureGo {
