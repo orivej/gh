@@ -8,13 +8,13 @@ import (
 	"os"
 	"regexp"
 
+	git "github.com/go-git/go-git"
+	gitc "github.com/go-git/go-git/config"
+	gitp "github.com/go-git/go-git/plumbing"
 	"github.com/google/go-github/github"
 	"github.com/gregjones/httpcache"
 	cli "github.com/jawher/mow.cli"
 	"github.com/orivej/e"
-	git "gopkg.in/src-d/go-git.v4"
-	gitc "gopkg.in/src-d/go-git.v4/config"
-	gitp "gopkg.in/src-d/go-git.v4/plumbing"
 )
 
 var rxGitHubURL = regexp.MustCompile(`(?i)github\.com[:/](.*?)/(.*?)(?:\.git)?$`)
